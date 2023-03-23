@@ -30,7 +30,8 @@ struct node** GetLettersCount(char* string, int length, int* size){
     for (size_t i = 0; i < 256; i++)
     {
         if (letters[i] != 0){
-            res[j]->letter = (char)i;
+            res[j]->letters[0] = (char)i;
+            res[j]->lcount = 1;
             res[j]->quantity = letters[i];
             j++;
         }
@@ -64,40 +65,67 @@ pair GetMinIPair(struct node** nodes, int size){
     return mi;
 }
 
+void SetLetters(struct node* nodeRoot, struct node* nodeA, struct node* nodeB){
+    nodeRoot->lcount = nodeA->lcount + nodeB->lcount;
+    for (size_t i = 0; i < nodeA->lcount; i++){
+        nodeRoot->letters[i] = nodeA->letters[i];
+    }
+    int s = nodeA->lcount;
+    for (size_t i = 0; i < nodeB->lcount; i++){
+        nodeRoot->letters[i+s] = nodeB->letters[i]; 
+    }
+}
+
 int GetHaffmanRoot(struct node** nodes, size_t size){
     int c = size-1;
     int lastind = 0;
     while (c){
         pair mininds = GetMinIPair(nodes, size);
         struct node* root = (struct node*)calloc(1, sizeof(struct node));
+
         root->right = nodes[mininds.first];
         root->right->bit = 1;
         root->left = nodes[mininds.second];
         root->left->bit = 0;
         root->quantity = root->left->quantity + root->right->quantity;
+
+        SetLetters(root, nodes[mininds.first], nodes[mininds.second]);
+        
         nodes[mininds.first] = root;
         nodes[mininds.second] = NULL;
         lastind = mininds.first;
 
-        printf("\n");
-        for (size_t i = 0; i < size; i++)
-        {
-            if (nodes[i] == NULL){
-                printf("-\n");
-                continue;
-            }
-            printf("%c\t%d\n", nodes[i]->letter, nodes[i]->quantity);
-        }
+        // printf("\n");
+        // for (size_t i = 0; i < size; i++)
+        // {
+        //     if (nodes[i] == NULL){
+        //         printf("-\n");
+        //         continue;
+        //     }
+        //     printf("%c\t%d\n", nodes[i]->letters[0], nodes[i]->quantity);
+        // }
         c--;
     }
     return lastind;
 }
 
-void GetHaffmanCodes(struct node* root, size_t size, code* codes, int level, int *k){
-    if (root->left == NULL || root->right == NULL){
-        codes[(*k)].letter = root->letter;
-        (*k)++;
-    } 
+void SetCodes(struct node* nodeRoot,int codes[][8], int depth){
+    for (size_t i = 0; i < 256; i++)
+    {
+        if (nodeRoot->letters[i] == '\0')
+            return;
+        codes[(int)nodeRoot->letters[i]][depth] = nodeRoot->bit;
+    }
+}
+
+void GetHaffmanCodes(struct node* root, int codes[256][8], int depth){
+    if (depth != -1)
+        SetCodes(root, codes, depth);
+    if (root->left == NULL || root->right == NULL)
+        return;
+    
+    GetHaffmanCodes(root->left, codes, depth+1);
+    GetHaffmanCodes(root->right, codes, depth+1);
 }
 
 
@@ -110,14 +138,45 @@ int main(int argc, char* argv[]){
     int lenght = strlen(argv[1]);
     int size = 0;
     struct node** nodes = GetLettersCount(argv[1], lenght, &size);
-    for (size_t i = 0; i < size; i++)
-    {
-        printf("%c\t%d\n", nodes[i]->letter, nodes[i]->quantity);
-    }
+    // for (size_t i = 0; i < size; i++)
+    // {
+    //     printf("%c\t%d\n", nodes[i]->letters[0], nodes[i]->quantity);
+    // }
 
     pair minnodes = GetMinIPair(nodes, size);
-    printf("%d %d\n", minnodes.first, minnodes.second);
+    // printf("%d %d\n", minnodes.first, minnodes.second);
 
     int rootind = GetHaffmanRoot(nodes, size);
+    struct node* root = nodes[rootind]->right;
     
+    // for (size_t i = 0; i < root->lcount; i++)
+    // {
+    //     printf("%c", root->letters[i]);
+    // }
+    // printf("\n%d\n", root->bit);
+    
+
+
+    int codes[256][8];
+    for (size_t i = 0; i < 256; i++)
+        for (size_t j = 0; j < 8; j++)
+            codes[i][j] = 2;
+    
+    GetHaffmanCodes(nodes[rootind], codes, -1);
+
+    for (size_t i = 0; i < 256; i++)
+    {
+        if (codes[i][0] == 2)
+            continue;
+        
+        printf("%c: ", (char)i);
+        for (size_t j = 0; j < 8; j++)
+        {
+            if (codes[i][j] == 2)
+                break;
+            
+            printf("%d", codes[i][j]);
+        }
+        printf("\n");
+    }
 }

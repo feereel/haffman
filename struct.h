@@ -10,11 +10,12 @@ typedef struct{
 
 typedef struct{
     char letter;
-    char lcode[7];
+    char lcode[8];
 } code;
 
 struct node {
-    char letter;
+    char letters[256];
+    int lcount;
     int quantity;
 
     int bit;
