@@ -2,7 +2,7 @@
 #define _STRUCT_H_
 
 #include <stdio.h>
-
+#define BUFFSIZE 32
 typedef struct{
     int first;
     int second;
