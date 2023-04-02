@@ -155,16 +155,13 @@ void WriteInBuffer(int buffer[], int start, int code[], int lenght, bool withBit
         int tl = lenght;
         for (size_t i = 0; i < 4; i++){
             int bit = tl%2;
-            printf("%d ", bit);
             tl >>= 1;
             buffer[(start+3-i)%BUFFSIZE] = bit;
         }
     }
     for (size_t i = 0; i < lenght; i++){
         buffer[(start + shift + i)%BUFFSIZE] = code[i];
-        printf("%d ", code[i]);
     }
-    printf("\n");
     
 }
 
@@ -241,7 +238,9 @@ char* Encrypt(char filename[]){
             codes[i][j] = 2;
     
     GetHaffmanCodes(nodes[rootind], codes, -1);
-    char* bfilename = strcat(filename, ".bin");
+    //here maybe memery leak
+    char* tfn = strdup(filename);
+    char* bfilename = strcat(tfn, ".bin");
     FILE* output = fopen(bfilename, "wb");
     
     //for count of bits in binary text
@@ -256,10 +255,8 @@ char* Encrypt(char filename[]){
 
     fclose(output);
     fclose(file);
-    remove(filename);
+    //remove(filename);
     
-    PrintCodes(codes);
-
     return bfilename;
 }
 
@@ -290,15 +287,59 @@ void DecryptHeader(FILE* binfile, int codes[][8]){
     }
 }
 
-void DecryptText(FILE* binfile, int codes[][8], char* tFileName){
-    FILE* output = fopen(tFileName, "wb");
+void DecryptText(FILE* binfile, int codes[][8], unsigned long cbits, char tFileName[]){
+    FILE* tfile = fopen(tFileName, "w");
 
+    char frame;
+    fread(&frame, sizeof(char), 1, binfile);
+    int pointer = 0;
+    while(true){
+        if (pointer == 8){
+            pointer = 0;
+            fread(&frame, sizeof(char), 1, binfile);
+        }
+        int bit = abs((frame >> (7-(pointer++))) % 2);
+        int buffer[8];
+        int bsize = 1;
+        buffer[0] = bit;
+        --cbits;
+        
+        for (size_t i = 0; i < 256; i++){
+            bool occur = false;
+            for (size_t j = 0; j < bsize; j++){
+                if (codes[i][j] == buffer[j]){
+                    if (j == 7){
+                        occur = true;
+                    } else if (codes[i][j+1] == 2){
+                        occur = true;
+                        break;
+                    } else if (j == bsize - 1){
+                        if (pointer == 8){
+                            pointer = 0;
+                            fread(&frame, sizeof(char), 1, binfile);
+                        }
+                        int bit = abs((frame >> (7-(pointer++))) % 2);
 
-
-    fclose(output);
+                        buffer[bsize++] = bit;
+                        --cbits;
+                    }
+                } else {
+                    break;
+                }
+            }
+            if (occur) {
+                putc(i, tfile);
+                break;
+            }
+        }
+        if (cbits == 0){
+            break;
+        }
+    }
+    fclose(tfile);
 }
 
-void Decrypt(char* bfilename, char* tFileName){
+void Decrypt(char* bfilename, char tFileName[]){
     FILE* bfile = fopen(bfilename, "rb");
     int codes[256][8];
     for (size_t i = 0; i < 256; i++)
@@ -308,12 +349,9 @@ void Decrypt(char* bfilename, char* tFileName){
     //read the count of bits in binary text
     unsigned long cbits;
     fread(&cbits, sizeof(unsigned long), 1, bfile);
-    printf("%lu\n", cbits);
 
     DecryptHeader(bfile, codes);
-    PrintCodes(codes);
-
-    DecryptText(bfile, codes, tFileName);
+    DecryptText(bfile, codes, cbits, tFileName);
 
     fclose(bfile);
 }
@@ -325,9 +363,9 @@ int main(int argc, char* argv[]){
             printf("Error of binary name!\n");
             exit(-1);
         }
-        char tFileName[bfnlen-4];
+        char tFileName[bfnlen];
         strncpy(tFileName, argv[2], bfnlen - 4);
-        printf("%s\n",tFileName);
+        tFileName[bfnlen-4] = '\0';
 
         Decrypt(argv[2], tFileName);
     } else if (argc == 3 && strcmp(argv[1], "-E") == 0){
