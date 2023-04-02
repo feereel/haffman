@@ -6,9 +6,9 @@
 #include <math.h>
 #include "struct.h"
 
-struct node** GetLettersCount(FILE* file, int* size){
-    int letters[256];
-    for (size_t i = 0; i < 256; i++){
+
+void GetLettersCount(FILE* file, unsigned long letters[MAXSYMBOLS], unsigned long* size){
+    for (size_t i = 0; i < MAXSYMBOLS; i++){
         letters[i] = 0;
     }
     char c;
@@ -16,19 +16,23 @@ struct node** GetLettersCount(FILE* file, int* size){
         letters[(int)c]++;
     }
 
-    for (size_t i = 0; i < 256; i++){
+    for (size_t i = 0; i < MAXSYMBOLS; i++){
         if (letters[i] != 0){
             (*size)++;
         }
     }
-    struct node** res = (struct node**)calloc((*size), sizeof(struct node*));
-    for (size_t i = 0; i < *size; i++)
+}
+
+struct node** GetNodesFromLC(unsigned long letters[MAXSYMBOLS], unsigned long size){
+    
+    struct node** res = (struct node**)calloc((size), sizeof(struct node*));
+    for (size_t i = 0; i < size; i++)
     {
         res[i] = (struct node*)calloc(1, sizeof(struct node));
     }
     
     size_t j = 0;
-    for (size_t i = 0; i < 256; i++)
+    for (size_t i = 0; i < MAXSYMBOLS; i++)
     {
         if (letters[i] != 0){
             res[j]->letters[0] = (char)i;
@@ -40,7 +44,7 @@ struct node** GetLettersCount(FILE* file, int* size){
     return res;
 }
 
-pair GetMinIPair(struct node** nodes, int size){
+pair GetMinIPair(struct node** nodes, unsigned long size){
     pair mi, mv;
     mi.first = 0, mi.second = 0;
     mv.first = INT_MAX, mv.second = INT_MAX;
@@ -77,7 +81,7 @@ void SetLetters(struct node* nodeRoot, struct node* nodeA, struct node* nodeB){
     }
 }
 
-int GetHaffmanRoot(struct node** nodes, size_t size){
+struct node* GetHaffmanRoot(struct node** nodes, size_t size){
     int c = size-1;
     int lastind = 0;
     while (c){
@@ -97,11 +101,11 @@ int GetHaffmanRoot(struct node** nodes, size_t size){
         lastind = mininds.first;
         c--;
     }
-    return lastind;
+    return nodes[lastind];
 }
 
-void SetCodes(struct node* nodeRoot,int codes[][8], int depth){
-    for (size_t i = 0; i < 256; i++)
+void SetCodes(struct node* nodeRoot,int codes[][MAXBITS], int depth){
+    for (size_t i = 0; i < MAXSYMBOLS; i++)
     {
         if (nodeRoot->letters[i] == '\0')
             return;
@@ -109,7 +113,7 @@ void SetCodes(struct node* nodeRoot,int codes[][8], int depth){
     }
 }
 
-void GetHaffmanCodes(struct node* root, int codes[256][8], int depth){
+void GetHaffmanCodes(struct node* root, int codes[MAXSYMBOLS][MAXBITS], int depth){
     if (depth != -1)
         SetCodes(root, codes, depth);
     if (root->left == NULL || root->right == NULL)
@@ -119,13 +123,13 @@ void GetHaffmanCodes(struct node* root, int codes[256][8], int depth){
     GetHaffmanCodes(root->right, codes, depth+1);
 }
 
-void PrintCodes(int codes[][8]){
-    for (size_t i = 0; i < 256; i++){
+void PrintCodes(int codes[][MAXBITS]){
+    for (size_t i = 0; i < MAXSYMBOLS; i++){
         if (codes[i][0] == 2)
             continue;
         
         printf("%c: ", (char)i);
-        for (size_t j = 0; j < 8; j++)
+        for (size_t j = 0; j < MAXBITS; j++)
         {
             if (codes[i][j] == 2)
                 break;
@@ -136,9 +140,9 @@ void PrintCodes(int codes[][8]){
     }
 }
 
-int GetCodeLenght(int code[8]){
+int GetCodeLenght(int code[MAXBITS]){
     int c = 0;
-    for (size_t i = 0; i < 8; i++){
+    for (size_t i = 0; i < MAXBITS; i++){
         if (code[i] != 2){
             c++;
         } else{
@@ -151,12 +155,12 @@ int GetCodeLenght(int code[8]){
 void WriteInBuffer(int buffer[], int start, int code[], int lenght, bool withBitsCount){
     int shift = 0;
     if (withBitsCount){
-        shift = 4;
+        shift = MAXSYMLENGHT;
         int tl = lenght;
-        for (size_t i = 0; i < 4; i++){
+        for (size_t i = 0; i < MAXSYMLENGHT; i++){
             int bit = tl%2;
             tl >>= 1;
-            buffer[(start+3-i)%BUFFSIZE] = bit;
+            buffer[(start+MAXSYMLENGHT-1-i)%BUFFSIZE] = bit;
         }
     }
     for (size_t i = 0; i < lenght; i++){
@@ -167,40 +171,25 @@ void WriteInBuffer(int buffer[], int start, int code[], int lenght, bool withBit
 
 void AppendBInFile(FILE* file, int buffer[], int pointer){
     char frame = 0;
-    for (size_t i = 0; i < 8; i++){
+    for (size_t i = 0; i < BITSINCHAR; i++){
         frame <<= 1;
         frame += buffer[(pointer+i)%BUFFSIZE];
     }
     fwrite(&frame, sizeof(char), 1, file);
 }
 
-//write char code in format: lenght[4], code[lenght]
-void EncryptHeader(FILE* binfile, int codes[][8]){
-    int buffer[BUFFSIZE];
-    int start = 0;
-    int pointer = 0;
-    int lastc = 0;
-    for (size_t i = 0; i < 256; i++)
-    {
-        int c = GetCodeLenght(codes[i]);
-        WriteInBuffer(buffer, start, codes[i], c, true);
-        start +=  4 + c;
-        while (start - pointer >= 8){
-            AppendBInFile(binfile, buffer, pointer);
-            pointer += 8;
-        }
-        pointer%=BUFFSIZE;
-        start%=BUFFSIZE;       
-    }
-    if (start % 8){
-        AppendBInFile(binfile, buffer, pointer);
+//write the number of letter in a text
+void EncryptHeader(FILE* binfile, unsigned long letters[MAXSYMBOLS]){
+    for (size_t i = 0; i < MAXSYMBOLS; i++){
+        unsigned long val = letters[i];
+        fwrite(&val, sizeof(unsigned long), 1, binfile);
     }
 }
 
-unsigned long EncryptText(FILE* textfile,FILE* binfile, int codes[][8]){
+unsigned long EncryptText(FILE* textfile,FILE* binfile, int codes[][MAXBITS]){
     fseek(textfile,0,SEEK_SET);
 
-    unsigned long cbits = 0;
+    unsigned long cwords = 0;
     int buffer[BUFFSIZE];
     int start = 0;
     int pointer = 0;
@@ -208,152 +197,122 @@ unsigned long EncryptText(FILE* textfile,FILE* binfile, int codes[][8]){
     while((letter = fgetc(textfile)) != EOF)
     {
         int c = GetCodeLenght(codes[(int)letter]);
-        cbits += c;
         WriteInBuffer(buffer, start, codes[(int)letter], c, false);
         start += c;
-        while (start - pointer >= 8){
+        while (start - pointer >= BITSINCHAR){
             AppendBInFile(binfile, buffer, pointer);
-            pointer += 8;
+            pointer += BITSINCHAR;
         }
         pointer%=BUFFSIZE;
         start%=BUFFSIZE;       
+
+        cwords++;
     }
     AppendBInFile(binfile, buffer, pointer);
-    return cbits;
+    return cwords;
 }
 
 char* Encrypt(char filename[]){
     FILE* file = fopen(filename, "r");
-    int size = 0;
-    struct node** nodes = GetLettersCount(file, &size);
+    unsigned long size = 0;
 
-    pair minnodes = GetMinIPair(nodes, size);
-
-    int rootind = GetHaffmanRoot(nodes, size);
-    struct node* root = nodes[rootind]->right;
-    
-    int codes[256][8];
-    for (size_t i = 0; i < 256; i++)
-        for (size_t j = 0; j < 8; j++)
-            codes[i][j] = 2;
-    
-    GetHaffmanCodes(nodes[rootind], codes, -1);
     //here maybe memery leak
     char* tfn = strdup(filename);
     char* bfilename = strcat(tfn, ".bin");
     FILE* output = fopen(bfilename, "wb");
-    
-    //for count of bits in binary text
-    unsigned long cbits = 0;
-    fwrite(&cbits, sizeof(unsigned long), 1, output);
 
-    EncryptHeader(output, codes);
-    cbits = EncryptText(file ,output, codes);
+    unsigned long letters[MAXSYMBOLS];
+    GetLettersCount(file, letters, &size);
+    struct node** nodes = GetNodesFromLC(letters, size);
+
+    struct node* root = GetHaffmanRoot(nodes, size);
+
+    int codes[MAXSYMBOLS][MAXBITS];
+    for (size_t i = 0; i < MAXSYMBOLS; i++)
+        for (size_t j = 0; j < MAXBITS; j++)
+            codes[i][j] = 2;
+    
+    GetHaffmanCodes(root, codes, -1);
+
+    //for count of words in binary text
+    unsigned long cwords = 0;
+    fwrite(&cwords, sizeof(unsigned long), 1, output);
+    fwrite(&size, sizeof(unsigned long), 1, output);
+
+    EncryptHeader(output, letters);
+    cwords = EncryptText(file ,output, codes);
 
     fseek(output, 0, SEEK_SET);
-    fwrite(&cbits, sizeof(unsigned long), 1, output);
+    fwrite(&cwords, sizeof(unsigned long), 1, output);
+
+    PrintCodes(codes);
 
     fclose(output);
     fclose(file);
-    //remove(filename);
+    remove(filename);
     
     return bfilename;
 }
 
-//read char code in format: lenght[4], code[lenght]
-void DecryptHeader(FILE* binfile, int codes[][8]){
-    char frame;
-    fread(&frame, sizeof(char), 1, binfile);
-    int pointer = 0;
-    int i = 0;
-    for (size_t i = 0; i < 256; i++){    
-        int codel = 0;
-        for (size_t j = 0; j < 4; j++){
-            int bit = abs((frame >> (7-pointer)) % 2); // get next bit
-            codel += bit * pow(2,3-j);
-            if ((++pointer) == 8){
-                pointer = 0;
-                fread(&frame, sizeof(char), 1, binfile);
-            }
-        }
-        for (size_t j = 0; j < codel; j++){
-            int bit = abs((frame >> (7-pointer)) % 2);
-            codes[i][j] = bit;
-            if ((++pointer) == 8){
-                pointer = 0;
-                fread(&frame, sizeof(char), 1, binfile);
-            }
-        }
+struct node* DecryptHeader(FILE* binfile, unsigned long size){
+    unsigned long letters[MAXSYMBOLS];
+    for (size_t i = 0; i < MAXSYMBOLS; i++){
+        fread(&letters[i], sizeof(unsigned long), 1, binfile);
     }
+    struct node** nodes = GetNodesFromLC(letters, size);
+    return GetHaffmanRoot(nodes, size);
 }
 
-void DecryptText(FILE* binfile, int codes[][8], unsigned long cbits, char tFileName[]){
+void DecryptText(FILE* binfile, struct node* root, unsigned long cwords, char tFileName[]){
     FILE* tfile = fopen(tFileName, "w");
 
     char frame;
     fread(&frame, sizeof(char), 1, binfile);
     int pointer = 0;
-    while(true){
-        if (pointer == 8){
+
+    struct node* nodeptr = root;
+
+    while (cwords){
+      
+        if (nodeptr->lcount==1){
+            fwrite(&(nodeptr->letters[0]), sizeof(char), 1, tfile);
+            nodeptr = root;
+            cwords--;
+            continue;
+        }
+
+        int bit = abs((frame >> (BITSINCHAR-pointer-1)) % 2);
+        
+        if (nodeptr->right->bit == bit){
+            nodeptr = nodeptr->right;
+        } else {
+            nodeptr = nodeptr->left;
+        }
+
+        if ((++pointer) == 8){
             pointer = 0;
             fread(&frame, sizeof(char), 1, binfile);
         }
-        int bit = abs((frame >> (7-(pointer++))) % 2);
-        int buffer[8];
-        int bsize = 1;
-        buffer[0] = bit;
-        --cbits;
-        
-        for (size_t i = 0; i < 256; i++){
-            bool occur = false;
-            for (size_t j = 0; j < bsize; j++){
-                if (codes[i][j] == buffer[j]){
-                    if (j == 7){
-                        occur = true;
-                    } else if (codes[i][j+1] == 2){
-                        occur = true;
-                        break;
-                    } else if (j == bsize - 1){
-                        if (pointer == 8){
-                            pointer = 0;
-                            fread(&frame, sizeof(char), 1, binfile);
-                        }
-                        int bit = abs((frame >> (7-(pointer++))) % 2);
-
-                        buffer[bsize++] = bit;
-                        --cbits;
-                    }
-                } else {
-                    break;
-                }
-            }
-            if (occur) {
-                putc(i, tfile);
-                break;
-            }
-        }
-        if (cbits == 0){
-            break;
-        }
     }
+
     fclose(tfile);
 }
 
 void Decrypt(char* bfilename, char tFileName[]){
     FILE* bfile = fopen(bfilename, "rb");
-    int codes[256][8];
-    for (size_t i = 0; i < 256; i++)
-        for (size_t j = 0; j < 8; j++)
-            codes[i][j] = 2;
 
     //read the count of bits in binary text
-    unsigned long cbits;
-    fread(&cbits, sizeof(unsigned long), 1, bfile);
+    unsigned long cwords, size;
+    fread(&cwords, sizeof(unsigned long), 1, bfile);
+    fread(&size, sizeof(unsigned long), 1, bfile);
 
-    DecryptHeader(bfile, codes);
-    DecryptText(bfile, codes, cbits, tFileName);
+    struct node* root = DecryptHeader(bfile, size);
+
+    DecryptText(bfile, root, cwords, tFileName);
 
     fclose(bfile);
+
+    remove(bfilename);
 }
 
 int main(int argc, char* argv[]){

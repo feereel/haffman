@@ -2,7 +2,13 @@
 #define _STRUCT_H_
 
 #include <stdio.h>
-#define BUFFSIZE 32
+
+#define BUFFSIZE 1024
+#define MAXSYMBOLS 256
+#define MAXBITS 256
+#define MAXSYMLENGHT 8
+#define BITSINCHAR 8
+
 typedef struct{
     int first;
     int second;
@@ -10,11 +16,11 @@ typedef struct{
 
 typedef struct{
     char letter;
-    char lcode[8];
+    char lcode[MAXBITS];
 } code;
 
 struct node {
-    char letters[256];
+    char letters[MAXSYMBOLS];
     int lcount;
     int quantity;
 
