@@ -311,7 +311,6 @@ void Decrypt(char* bfilename, char tFileName[]){
     DecryptText(bfile, root, cwords, tFileName);
 
     fclose(bfile);
-
     remove(bfilename);
 }
 
